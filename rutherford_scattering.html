@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拉塞福散射模擬 - 熊翊丞 製作</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+</head>
+<body>
+    <h2 style="text-align: center;">拉塞福散射模擬</h2>
+    <p style="text-align: center;">製作人：熊翊丞</p>
+    <p style="text-align: center;">製作時間：2025.3.10</p>
+    <script>
+        let particles = [];
+        let nucleus;
+        let k = 100;
+        let startX = 50;
+        let atomRadius = 250;
+        let nucleusRadius = 10;
+        let scatterAngles = [];
+        let plotHeight = 100;
+        let maxParticles = 800;
+        let maxPathPoints = 30;
+        let fireButton, speedSlider, numParticlesSlider, kInput;
+
+        function setup() {
+            createCanvas(900, 600);
+            nucleus = createVector(width / 2, height / 2);
+
+            kInput = createInput(k.toString());
+            kInput.position(20, height - 100);
+            kInput.size(80);
+            kInput.input(updateK);
+
+            speedSlider = createSlider(1, 10, 3, 1);
+            speedSlider.position(120, height - 100);
+
+            numParticlesSlider = createSlider(50, 200, 100, 10);
+            numParticlesSlider.position(250, height - 100);
+
+            fireButton = createButton("發射粒子");
+            fireButton.position(20, height - 60);
+            fireButton.mousePressed(fireParticles);
+        }
+
+        function draw() {
+            background(0);
+            fill(255);
+            textSize(14);
+            text("庫侖常數 k:", 20, height - 110);
+            text("粒子速度:", 120, height - 110);
+            text("每次發射粒子數:", 250, height - 110);
+            text("散射角度統計圖:", 600, height - 110);
+
+            fill(255, 204, 0, 50);
+            ellipse(nucleus.x, nucleus.y, atomRadius * 2, atomRadius * 2);
+            fill(255, 204, 0);
+            ellipse(nucleus.x, nucleus.y, nucleusRadius * 2, nucleusRadius * 2);
+
+            if (particles.length > maxParticles) {
+                particles.splice(0, particles.length - maxParticles);
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                let r = dist(p.pos.x, p.pos.y, nucleus.x, nucleus.y);
+                if (r < nucleusRadius) r = nucleusRadius;
+                if (r < atomRadius) {
+                    let force = p5.Vector.sub(p.pos, nucleus);
+                    force.setMag(k / (r * r));
+                    p.vel.add(force);
+                }
+
+                if (p.path.length > maxPathPoints) {
+                    p.path.shift();
+                }
+                p.path.push(p.pos.copy());
+                p.pos.add(p.vel);
+
+                fill(0, 255, 255);
+                ellipse(p.pos.x, p.pos.y, 5, 5);
+
+                noFill();
+                stroke(0, 255, 255, 50);
+                beginShape();
+                for (let pt of p.path) {
+                    vertex(pt.x, pt.y);
+                }
+                endShape();
+                stroke(255);
+
+                if (p.pos.x > width || p.pos.y < 0 || p.pos.y > height) {
+                    let finalAngle = degrees(atan2(p.vel.y, p.vel.x));
+                    scatterAngles.push(finalAngle);
+                    if (scatterAngles.length > 50) scatterAngles.shift();
+                    particles.splice(i, 1);
+                }
+            }
+
+            drawHistogram(scatterAngles, 600, height - 100, 200, plotHeight);
+        }
+
+        function updateK() {
+            let inputVal = parseFloat(kInput.value());
+            if (!isNaN(inputVal)) {
+                k = inputVal;
+            }
+        }
+
+        function fireParticles() {
+            let numParticles = numParticlesSlider.value();
+            let speed = speedSlider.value();
+            for (let i = 0; i < numParticles; i++) {
+                let posY = map(i, 0, numParticles - 1, height * 0.05, height * 0.95);
+                let velocity = createVector(speed, 0);
+                particles.push({ pos: createVector(startX, posY), vel: velocity, path: [] });
+            }
+        }
+
+        function drawHistogram(data, x, y, w, h) {
+            let bins = new Array(10).fill(0);
+            let binSize = 180 / bins.length;
+            for (let angle of data) {
+                let index = floor((angle + 90) / binSize);
+                if (index >= 0 && index < bins.length) {
+                    bins[index]++;
+                }
+            }
+
+            let maxCount = max(bins);
+            fill(200);
+            for (let i = 0; i < bins.length; i++) {
+                let barHeight = map(bins[i], 0, maxCount, 0, h);
+                rect(x + i * (w / bins.length), y - barHeight, (w / bins.length) - 2, barHeight);
+            }
+
+            fill(255);
+            textAlign(CENTER);
+            for (let i = 0; i <= bins.length; i++) {
+                let angleLabel = -90 + i * binSize;
+                text(angleLabel + "°", x + i * (w / bins.length), y + 15);
+            }
+        }
+    </script>
+</body>
+</html>
